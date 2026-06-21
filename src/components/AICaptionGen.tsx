@@ -25,7 +25,7 @@ export default function AICaptionGen({
     setLoading(true);
     setGeneratedCaption("");
     try {
-      const response = await fetch("/api/gemini/generate-caption", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/gemini/generate-caption`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

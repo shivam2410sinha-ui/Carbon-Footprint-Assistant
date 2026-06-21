@@ -236,7 +236,7 @@ export default function CarbonScanner({
     }, 350);
 
     try {
-      const response = await fetch("/api/gemini/scan-footprint", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/gemini/scan-footprint`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -49,7 +49,7 @@ export default function CarbonAssistant() {
       // Clean target prompt text: replace placeholder with actual current username
       const resolvedPrompt = textToSend.replace("my user ID", `'${userId}'`);
 
-      const response = await fetch("/api/adk/run", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/adk/run`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
