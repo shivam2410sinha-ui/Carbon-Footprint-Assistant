@@ -494,7 +494,7 @@ app.post("/api/adk/run", async (req, res) => {
 
       history.push(candidate.content);
       history.push({
-        role: "tool",
+        role: "function",
         parts: toolResponseParts
       });
 

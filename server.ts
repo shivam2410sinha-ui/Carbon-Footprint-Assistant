@@ -510,14 +510,12 @@ async function startServer() {
             }
           });
         }
-
         // Add function calls and responses to history
         history.push(candidate.content);
         history.push({
-          role: "tool",
+          role: "function",
           parts: toolResponseParts
         });
-
         // Call Gemini again to get final answer
         const secondResponse = await client.models.generateContent({
           model: "gemini-2.5-flash",
