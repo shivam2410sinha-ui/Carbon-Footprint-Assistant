@@ -356,30 +356,199 @@ async function startServer() {
     }
   });
 
+  // In-memory store for registered users (matches agent.py)
+  const REGISTERED_USERS = new Set([
+    "user-me",
+    "eco_shivam",
+    "user-123",
+    "aria_wood",
+    "zoe_sanchez",
+    "kai_chen",
+  ]);
+
+  // In-memory store for logged activities: key is user_id:activity_category:date_str
+  const LOGGED_ACTIVITIES = new Map<string, string>();
+
+  // In-memory store for chat session histories
+  const sessionHistories = new Map<string, any[]>();
+
+  function register_user(userId: string): string {
+    const clean = userId.trim();
+    if (!clean) return "Error: User ID cannot be empty.";
+    if (REGISTERED_USERS.has(clean)) {
+      return `User ID '${clean}' is already registered.`;
+    }
+    REGISTERED_USERS.add(clean);
+    return `Successfully registered user ID '${clean}'.`;
+  }
+
+  function log_daily_activity(userId: string, activityCategory: string): string {
+    const cleanUser = userId.trim();
+    const cleanCategory = activityCategory.trim().toUpperCase();
+
+    if (!REGISTERED_USERS.has(cleanUser)) {
+      return `Error: User ID '${cleanUser}' is not registered. Please register first using register_user.`;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const key = `${cleanUser}:${cleanCategory}:${todayStr}`;
+
+    if (LOGGED_ACTIVITIES.has(key)) {
+      return `Error: Activity category '${cleanCategory}' has already been logged for user '${cleanUser}' today (${todayStr}). Each category can only be logged once per day per person.`;
+    }
+
+    LOGGED_ACTIVITIES.set(key, new Date().toISOString());
+    return `Success: Logged activity '${cleanCategory}' for user '${cleanUser}' on ${todayStr}.`;
+  }
+
   app.post("/api/adk/run", async (req, res) => {
     try {
-      const response = await fetch("http://127.0.0.1:8080/run", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          app_name: "carbon_advisor",
-          user_id: req.body.user_id || "eco_shivam",
-          session_id: req.body.session_id || "default-session",
-          new_message: req.body.new_message
-        })
-      });
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("ADK Server Error:", errText);
-        res.status(response.status).send(errText);
-        return;
+      const { user_id, session_id, new_message } = req.body;
+      const userPrompt = new_message?.parts?.[0]?.text || "";
+
+      // Fallback: If no API key is set, return simulated response
+      if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "MY_GEMINI_API_KEY" || process.env.GEMINI_API_KEY === "MOCK_KEY") {
+        let reply = "Hello! I am your Carbon AI Advisor (Simulated). Please set a real GEMINI_API_KEY to enable live agent routing.";
+        if (userPrompt.toLowerCase().includes("register")) {
+          reply = register_user(user_id);
+        } else if (userPrompt.toLowerCase().includes("log")) {
+          if (userPrompt.includes("COMMUTE_CAR")) {
+            reply = log_daily_activity(user_id, "COMMUTE_CAR");
+          } else if (userPrompt.includes("HOME_ELEC")) {
+            reply = log_daily_activity(user_id, "HOME_ELEC");
+          } else {
+            reply = "Simulated log: Please specify category COMMUTE_CAR or HOME_ELEC.";
+          }
+        }
+        return res.json([
+          {
+            role: "model",
+            content: {
+              parts: [{ text: reply }]
+            }
+          }
+        ]);
       }
-      const data = await response.json();
-      res.json(data);
+
+      const client = getGeminiClient();
+
+      // Retrieve history
+      let history = sessionHistories.get(session_id) || [];
+      
+      // Push new user message
+      history.push({
+        role: "user",
+        parts: [{ text: userPrompt }]
+      });
+
+      // Call Gemini with tools
+      const response = await client.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: history,
+        config: {
+          systemInstruction: "You are an AI Environmental Advisor. Your job is to help users track and reduce their carbon footprint. Use the log_daily_activity tool when they tell you about daily carbon-emitting activities like COMMUTE_CAR or HOME_ELEC. If their user ID is not registered, prompt them to register using register_user first. Encourage sustainable behaviors and advise on carbon footprint reduction.",
+          tools: [{
+            functionDeclarations: [
+              {
+                name: "register_user",
+                description: "Registers a new user ID so they can log activities.",
+                parameters: {
+                  type: "OBJECT" as any,
+                  properties: {
+                    user_id: {
+                      type: "STRING" as any,
+                      description: "The unique user ID to register."
+                    }
+                  },
+                  required: ["user_id"]
+                }
+              },
+              {
+                name: "log_daily_activity",
+                description: "Logs a carbon-emitting activity (e.g., 'COMMUTE_CAR', 'HOME_ELEC') for a registered user. Ensures that a specific activity category can only be logged once per day per person.",
+                parameters: {
+                  type: "OBJECT" as any,
+                  properties: {
+                    user_id: {
+                      type: "STRING" as any,
+                      description: "The registered user ID."
+                    },
+                    activity_category: {
+                      type: "STRING" as any,
+                      description: "The category of the activity (e.g. 'COMMUTE_CAR', 'HOME_ELEC')."
+                    }
+                  },
+                  required: ["user_id", "activity_category"]
+                }
+              }
+            ]
+          }]
+        }
+      });
+
+      const candidate = response.candidates?.[0];
+      const functionCalls = candidate?.content?.parts?.filter((p: any) => p.functionCall);
+
+      let finalResponseText = response.text || "";
+
+      if (functionCalls && functionCalls.length > 0) {
+        const toolResponseParts: any[] = [];
+        for (const fc of functionCalls) {
+          const { name, args } = fc.functionCall;
+          const anyArgs = args as any;
+          let resultText = "";
+          if (name === "register_user") {
+            resultText = register_user(anyArgs.user_id || user_id);
+          } else if (name === "log_daily_activity") {
+            resultText = log_daily_activity(anyArgs.user_id || user_id, anyArgs.activity_category || "");
+          }
+
+          toolResponseParts.push({
+            functionResponse: {
+              name,
+              response: { result: resultText }
+            }
+          });
+        }
+
+        // Add function calls and responses to history
+        history.push(candidate.content);
+        history.push({
+          role: "tool",
+          parts: toolResponseParts
+        });
+
+        // Call Gemini again to get final answer
+        const secondResponse = await client.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: history,
+          config: {
+            systemInstruction: "You are an AI Environmental Advisor. Your job is to help users track and reduce their carbon footprint. Encourage sustainable behaviors and advise on carbon footprint reduction."
+          }
+        });
+
+        finalResponseText = secondResponse.text || "I have processed your request.";
+        history.push(secondResponse.candidates?.[0]?.content);
+      } else {
+        history.push(candidate.content);
+      }
+
+      // Limit history size
+      if (history.length > 20) {
+        history = history.slice(history.length - 20);
+      }
+      sessionHistories.set(session_id, history);
+
+      res.json([
+        {
+          role: "model",
+          content: {
+            parts: [{ text: finalResponseText }]
+          }
+        }
+      ]);
     } catch (error: any) {
-      console.error("ADK proxy error:", error);
+      console.error("Agent chat proxy error:", error);
       res.status(500).json({ error: error.message });
     }
   });
