@@ -1,0 +1,28 @@
+# Environment variables
+.env
+.env*
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Package build and distribution artifacts
+build/
+dist/
+*.egg-info/
+
+# uv package manager
+uv.lock
+
+# Ruff lint cache
+.ruff_cache/
+
+# Pytest cache
+.pytest_cache/

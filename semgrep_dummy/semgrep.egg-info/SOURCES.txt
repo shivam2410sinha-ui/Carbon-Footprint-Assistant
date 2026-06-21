@@ -1,0 +1,5 @@
+pyproject.toml
+semgrep.egg-info/PKG-INFO
+semgrep.egg-info/SOURCES.txt
+semgrep.egg-info/dependency_links.txt
+semgrep.egg-info/top_level.txt

@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: api-key-gate
+        name: API Key Security Gate
+        entry: python gate.py
+        language: system
+        files: ^app/agent.py$

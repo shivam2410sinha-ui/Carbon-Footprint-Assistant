@@ -1,0 +1,6 @@
+{
+  "name": "GreenPulse",
+  "description": "A gamified Gen Z social platform for carbon footprint tracking, green streaks, local challenges, and ranking-based exclusive badge redemptions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
