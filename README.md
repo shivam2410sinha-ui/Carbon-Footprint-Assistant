@@ -22,4 +22,4 @@ Ridding Gen Z of climate anxiety by actively crushing daily emissions! 🚀🚴�
 
 - **Frontend**: React 19, TypeScript, TailwindCSS v4, Motion (Framer), Lucide Icons.
 - **Backend**: Node.js, Express, `@google/genai` (Google Gen AI SDK).
-- **Deployment**: Vercel Serverless Functions (`api/index.ts`).
+
